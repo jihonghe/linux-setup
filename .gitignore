@@ -1,0 +1,20 @@
+# secrets / keys
+*.jks
+*.keystore
+key.properties
+secrets/
+*.pem
+id_rsa
+id_ed25519
+
+# archives
+*.tar
+*.tar.gz
+*.tar.xz
+*.zip
+
+# misc
+.DS_Store
+node_modules/
+*.bak
+*.bak.*

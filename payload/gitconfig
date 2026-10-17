@@ -1,0 +1,7 @@
+[safe]
+	directory = *
+[user]
+	name = jihonghe
+	email = 1654508502@qq.com
+[init]
+	defaultBranch = main

@@ -1,0 +1,4 @@
+# ~/.zshenv — managed by linux-setup
+# 非交互 shell 也会加载，保持最小。
+
+[[ -f "$HOME/.cargo/env" ]] && source "$HOME/.cargo/env"

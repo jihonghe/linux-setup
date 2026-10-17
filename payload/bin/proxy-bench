@@ -1,0 +1,224 @@
+#!/usr/bin/env bash
+# proxy-bench —— monocloud 当前节点的延迟 / 带宽对比工具
+#
+#   proxy-bench                     测当前节点（自动读取 App 里的节点名）
+#   proxy-bench --watch             监听模式：在 App 里换节点，脚本自动测（推荐）
+#   proxy-bench --loop              手动模式：换节点 → 回车 → 逐个测
+#   proxy-bench --direct            测直连基线（不经过代理）做对照
+#   proxy-bench --list              只看历史排行
+#   proxy-bench --conns 8 --size 2  自定义并发数和每个连接的下载量(MiB)
+#   proxy-bench --label "HK 2"      手动指定节点名
+#
+# 结果累积在 ~/.local/share/proxy-bench/results.csv
+
+set -uo pipefail
+
+MONO_JSON="${MONO_JSON:-$HOME/.Monocloud.json}"
+PORT="$(jq -r '.mihomo_mixed_port // 10801' "$MONO_JSON" 2>/dev/null || echo 10801)"
+NODE="$(jq -r '.last_connection.node_alias // "unknown"' "$MONO_JSON" 2>/dev/null || echo unknown)"
+PROXY="${PROXY:-http://127.0.0.1:${PORT}}"
+
+CONNS=8
+SIZE_MIB=2
+LOOP=0
+WATCH=0
+LIST_ONLY=0
+DIRECT=0
+LABEL=""
+LAT_URL="https://www.gstatic.com/generate_204"
+DL_URL="https://speed.cloudflare.com/__down"
+RESULTS_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/proxy-bench"
+RESULTS="$RESULTS_DIR/results.csv"
+
+die()  { printf '\033[31m%s\033[0m\n' "$*" >&2; exit 1; }
+info() { printf '\033[36m%s\033[0m\n' "$*"; }
+ok()   { printf '\033[32m%s\033[0m\n' "$*"; }
+warn() { printf '\033[33m%s\033[0m\n' "$*"; }
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --conns)   CONNS="$2";    shift 2 ;;
+    --size)    SIZE_MIB="$2"; shift 2 ;;
+    --label)   LABEL="$2";    shift 2 ;;
+    --proxy)   PROXY="$2";    shift 2 ;;
+    --loop)    LOOP=1;        shift ;;
+    --watch)   WATCH=1;       shift ;;
+    --list)    LIST_ONLY=1;   shift ;;
+    --direct)  DIRECT=1;      shift ;;
+    -h|--help) sed -n '2,12p' "$0"; exit 0 ;;
+    *) die "未知参数: $1（--help 看用法）" ;;
+  esac
+done
+
+command -v jq  >/dev/null || die "缺少 jq，请先安装：sudo apt install jq"
+command -v curl >/dev/null || die "缺少 curl"
+
+mkdir -p "$RESULTS_DIR"
+[ -f "$RESULTS" ] || echo "time,node,latency_ms,agg_MBps,conns,size_MiB" > "$RESULTS"
+
+show_table() {
+  [ -s "$RESULTS" ] || return 0
+  info "=== 历史排行（同一节点取最好成绩） ==="
+  awk -F, 'NR>1 {
+             k=$2
+             if (!(k in best) || ($4+0) > best[k]) { best[k]=$4+0; line[k]=$0 }
+           }
+           END { for (k in best) print best[k] "\t" line[k] }' "$RESULTS" \
+  | sort -rn \
+  | awk -F'\t' '{ split($2,a,","); printf "  %-24s 延迟 %6s ms   带宽 %6.2f MB/s\n", a[2], a[3], a[4] }'
+
+  local base
+  base=$(awk -F, 'NR>1 && $2 ~ /直连基线/ { if (($4+0) > m) m=$4+0 } END { if (m) printf "%.2f", m }' "$RESULTS")
+  [ -n "${base:-}" ] && echo "  基线: 直连 ${base} MB/s"
+  echo
+}
+
+[ "$LIST_ONLY" = 1 ] && { show_table; exit 0; }
+
+# ---- 预检：代理是否在监听 --------------------------------------------------
+if [ "$DIRECT" = 0 ]; then
+  if ! ss -lnt 2>/dev/null | grep -q ":${PORT} "; then
+    die "❌ 127.0.0.1:${PORT} 没有在监听：monocloud 的代理核心没起来。
+   请打开 monocloud → 连接节点 → 确认已连接，再重跑本命令。"
+  fi
+fi
+
+CURL_ARGS=()
+if [ "$DIRECT" = 1 ]; then
+  CURL_ARGS+=(--noproxy '*')
+else
+  CURL_ARGS+=(-x "$PROXY")
+fi
+
+# ---- 测延迟：TTFB 取 3 次里最好的一次（毫秒） ------------------------------
+measure_latency() {
+  local best="" t ms i
+  for i in 1 2 3; do
+    t=$(curl -s -o /dev/null "${CURL_ARGS[@]}" --max-time 10 \
+          -w '%{time_starttransfer}' "$LAT_URL" 2>/dev/null) || continue
+    [ -z "$t" ] && continue
+    ms=$(awk -v v="$t" 'BEGIN { printf "%d", v*1000 }')
+    if [ -z "$best" ] || [ "$ms" -lt "$best" ]; then best="$ms"; fi
+  done
+  echo "${best:-0}"
+}
+
+# ---- 测带宽：N 条并发连接，用「总字节 / 总墙钟时间」算聚合速率 -------------
+measure_throughput() {
+  local bytes tmp start end total
+  bytes=$(( SIZE_MIB * 1048576 ))
+  tmp=$(mktemp -d)
+  start=$(date +%s%N)
+  seq 1 "$CONNS" | xargs -P"$CONNS" -I{} \
+    curl -s -o /dev/null "${CURL_ARGS[@]}" --max-time 90 \
+         -w '%{size_download}\n' "${DL_URL}?bytes=${bytes}&n={}" > "$tmp/out" 2>/dev/null
+  end=$(date +%s%N)
+  total=$(awk '{ s += $1 } END { printf "%d", s }' "$tmp/out")
+  rm -rf "$tmp"
+  awk -v b="$total" -v ms=$(( (end - start) / 1000000 )) \
+      'BEGIN { if (ms <= 0) ms = 1; printf "%.2f", (b / 1048576) / (ms / 1000) }'
+}
+
+current_node() {
+  jq -r '.last_connection.node_alias // "unknown"' "$MONO_JSON" 2>/dev/null || echo unknown
+}
+
+# 节点 + 连接时间的组合键：任何一个变了都视为"切换了节点"
+node_key() {
+  jq -r '"\(.last_connection.node_alias // "unknown")|\(.last_connection.connected_at // "")"' \
+     "$MONO_JSON" 2>/dev/null
+}
+
+port_up() {
+  ss -lnt 2>/dev/null | grep -q ":${PORT} "
+}
+
+run_one() {
+  local label="${LABEL:-$(current_node)}"
+  [ "$DIRECT" = 1 ] && label="${label} (直连基线)"
+  info "→ 节点：$label"
+  printf '   测试参数 : %s 条并发 × %s MiB\n' "$CONNS" "$SIZE_MIB"
+
+  local lat agg
+  lat=$(measure_latency)
+  printf '   延迟 TTFB: %s ms\n' "$lat"
+
+  agg=$(measure_throughput)
+  printf '   聚合带宽 : %s MB/s\n' "$agg"
+
+  echo "$(date '+%F %T'),$label,$lat,$agg,$CONNS,$SIZE_MIB" >> "$RESULTS"
+  ok "   已记录"
+  echo
+}
+
+watch_cleanup() {
+  trap - INT TERM
+  echo
+  show_table
+  exit 0
+}
+
+watch_loop() {
+  info "监听模式：在 monocloud 里切换节点，脚本会自动测速。Ctrl-C 退出。"
+  echo
+  trap 'watch_cleanup' INT TERM
+  local last="" cur="" before="" i
+
+  if port_up; then
+    last=$(node_key)
+    run_one
+    show_table
+  else
+    warn "当前代理未连接，等待连接…"
+    last=$(node_key)
+  fi
+
+  while :; do
+    sleep 1
+    cur=$(node_key)
+    [ "$cur" = "$last" ] && continue
+
+    printf '\033[35m… 检测到节点切换：%s\033[0m\n' "${cur%%|*}"
+
+    # 等端口起来（最多 25 秒）
+    for i in $(seq 1 25); do
+      port_up && break
+      sleep 1
+    done
+    if ! port_up; then
+      warn "  ${cur%%|*} 未能在 25 秒内连上，继续等待下一次切换"
+      last="$cur"
+      continue
+    fi
+
+    sleep 2                      # 等它稳定一下
+    [ "$(node_key)" = "$cur" ] || continue   # 期间又切了，重新判断
+    last="$cur"
+    before="$cur"
+
+    run_one
+    show_table
+
+    # 测量过程中如果又切了节点，这条记录作废
+    if [ "$(node_key)" != "$before" ]; then
+      warn "  测量期间节点又变了，该条结果作废"
+      sed -i '$d' "$RESULTS"
+      last=""
+    fi
+  done
+}
+
+if [ "$WATCH" = 1 ]; then
+  watch_loop
+elif [ "$LOOP" = 1 ]; then
+  info "手动模式：在 monocloud 里选好节点、确认已连接后按回车开始测；输入 q 退出。"
+  while :; do
+    read -r -p "▶ 按回车测试当前节点（q 退出）: " a
+    [ "$a" = "q" ] && break
+    run_one
+    show_table
+  done
+else
+  run_one
+  show_table
+fi

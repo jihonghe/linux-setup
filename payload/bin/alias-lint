@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+# alias-lint —— 检查 ~/.alias.sh 里的命令是否都有完整注释
+#
+# 检查项:
+#   1. 每个函数 / alias 是否都有 @cmd 说明
+#   2. 是否都有 @usage 用法
+#   3. @usage 的第一个词是否与命令名一致
+#   4. 是否存在悬空的 @cmd 块（下面没有命令定义）
+#   5. 下划线开头的内部函数是否误写了 @cmd
+#
+# 用法:
+#   alias-lint            输出所有问题，有问题时退出码 1
+#   alias-lint --quiet    无问题时完全静默（供 .zshrc 启动自检使用）
+set -uo pipefail
+
+SRC="${ALIAS_FILE:-$HOME/.alias.sh}"
+QUIET=0
+[ "${1:-}" = "--quiet" ] && QUIET=1
+
+if [ ! -f "$SRC" ]; then
+  echo "alias-lint: 找不到 $SRC" >&2
+  exit 1
+fi
+
+REPORT=$(awk '
+function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
+function problem(msg, line) {
+  problems++
+  printf "  ✗ 第 %d 行  %s\n", line, msg
+}
+function reset() { desc = ""; use = ""; desc_line = 0 }
+
+BEGIN { desc = ""; use = ""; desc_line = 0; problems = 0 }
+
+/^# ==== .* ====$/ { next }
+
+/^# @cmd: /     { desc = substr($0, 9);  desc_line = NR; next }
+/^# @usage: /   { use  = substr($0, 11); next }
+/^# @example: / { next }
+
+/^alias +[A-Za-z0-9_-]+=/ {
+  n = $0
+  sub(/^alias +/, "", n)
+  sub(/=.*/, "", n)
+  check(n, NR)
+  reset()
+  next
+}
+
+/^[A-Za-z_][A-Za-z0-9_-]*\(\)/ {
+  n = $0
+  sub(/\(\).*/, "", n)
+  check(n, NR)
+  reset()
+  next
+}
+
+function check(name, line,   first) {
+  if (name ~ /^_/) {
+    if (desc != "") problem(name " 是内部函数（_ 开头），不应写 @cmd", desc_line)
+    return
+  }
+  if (desc == "") problem(name " 缺少 @cmd 说明", line)
+  if (use == "") {
+    problem(name " 缺少 @usage 用法", line)
+  } else {
+    first = use
+    sub(/[ \t].*/, "", first)
+    # 允许 usage 里先写命令名；若第一个词不是命令名则报错
+    if (first != name) problem(name " 的 @usage 第一个词是 “" first "”，与命令名不一致", line)
+  }
+}
+
+END {
+  if (desc != "") problem("悬空的 @cmd 块（下面没有命令定义）", desc_line)
+  exit (problems > 0 ? 1 : 0)
+}
+' "$SRC")
+rc=$?
+
+if [ "$rc" -eq 0 ]; then
+  [ "$QUIET" -eq 0 ] && echo "✓ alias-lint: 全部命令注释完整（$(grep -cE '^(alias |[A-Za-z_][A-Za-z0-9_-]*\(\))' "$SRC") 个定义）"
+  exit 0
+fi
+
+if [ "$QUIET" -eq 1 ]; then
+  echo "⚠ ~/.alias.sh 注释不完整（$(printf '%s\n' "$REPORT" | grep -c '✗') 个问题），运行 alias-lint 查看" >&2
+else
+  echo "alias-lint: 发现问题"
+  [ -n "$REPORT" ] && echo "$REPORT"
+fi
+exit 1
