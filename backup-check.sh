@@ -38,7 +38,7 @@ usage() {
 while (( $# )); do
   case "$1" in
     --backup-dir) BACKUP_DIR="${2:-}"; shift 2 ;;
-    --pack)       PACK=1 ;;
+    --pack)       PACK=1; shift ;;
     -h|--help)    usage ;;
     *)            printf '未知参数: %s\n' "$1" >&2; exit 2 ;;
   esac
