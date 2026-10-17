@@ -128,7 +128,7 @@ verify() {
   fi
 
   if command -v opencode >/dev/null 2>&1; then
-    printf '  %s[ok]%s opencode %s\n' "$C_OK" "$C_OFF" "$(opencode --version 2>/dev/null | head -1)"
+    printf '  %s[ok]%s opencode %s\n' "$C_OK" "$C_OFF" "$(command -v opencode)"
   else
     printf '  %s[--]%s opencode 未安装\n' "$C_WARN" "$C_OFF"
   fi
