@@ -50,7 +50,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-command -v jq  >/dev/null || die "缺少 jq，请先安装：sudo apt install jq"
+command -v jq  >/dev/null || die "缺少 jq，请先安装：sudo pacman -S jq"
 command -v curl >/dev/null || die "缺少 curl"
 
 mkdir -p "$RESULTS_DIR"

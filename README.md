@@ -124,10 +124,8 @@ bash backup-check.sh --backup-dir /media/usb/backup --pack
 打开终端：`Super + Return`。
 
 ```bash
-# 1. AppImage 运行库
-sudo pacman -S --needed fuse2
-
-# 2. MonoCloud
+# MonoCloud（AppImage 是静态运行时，无需 fuse2；若报缺 libfuse.so.2 再装）
+#   sudo pacman -S --needed fuse2
 mkdir -p ~/Applications
 mv ~/Downloads/monocloud-*.AppImage ~/Applications/monocloud.AppImage
 chmod +x ~/Applications/monocloud.AppImage
@@ -200,10 +198,10 @@ bash apply.sh
 
 它会：
 
-1. 检查并补装 `zsh`、`fuse2`
+1. 检查并补装 `zsh`、`aria2`、`jq`（`dl` 用 aria2c；代理状态与配置合并用 jq）
 2. 安装 oh-my-zsh（不存在时）
 3. 备份现有配置到 `~/.linux-setup-backup-<时间戳>/`
-4. 复制 `alias.sh`、`zshrc`、`zshenv`、bin 脚本、gitconfig、ZeroOmega 规则
+4. 复制 `alias.sh`、`zshrc`、`zshenv`、bin 脚本、`gitconfig`（→ `~/.config/git/config`）、ZeroOmega 规则
 5. 合并 OpenCode 配置（保留 Omarchy 自带的 `opencode.json`）
 6. 向 Ghostty 配置追加下拉终端设置（不覆盖官方配置）
 7. 运行环境检查
@@ -277,17 +275,15 @@ bash dev-setup.sh --force-flutter
 
 ### 7.1 输入法
 
-Omarchy 预装 fcitx5 + 中文引擎，启用拼音组：
+Omarchy 预装 fcitx5 + 中文引擎（本机拼音组已配好）。需要调整时：
 
 ```bash
-omarchy-setup-input
+fcitx5-configtool
 ```
 
-或：`Super + Space` → Setup → Input。
-
-1. 添加 **Pinyin**
+1. 添加 **Pinyin**（拼音组）
 2. 需要五笔就再加 **Wubi 98**
-3. 切换键默认 `Ctrl + Space`
+3. 切换键默认 `Ctrl + Space`（`Super + Space` 也可切换）
 
 验证：
 

@@ -91,7 +91,7 @@ compare "$HOME/.local/bin/alias-lint"        "$PAYLOAD/bin/alias-lint"          
 compare "$HOME/.local/bin/proxy-bench"       "$PAYLOAD/bin/proxy-bench"             "proxy-bench"
 compare "$HOME/.config/opencode/cli.json"    "$PAYLOAD/opencode/cli.json"           "opencode/cli.json"
 compare "$HOME/.config/opencode/tui.json"    "$PAYLOAD/opencode/tui.json"           "opencode/tui.json"
-compare "$HOME/.gitconfig"                   "$PAYLOAD/gitconfig"                   "gitconfig"
+compare "$HOME/.config/git/config"           "$PAYLOAD/gitconfig"                   "gitconfig"
 compare "$HOME/.config/zeroomega/rules.txt"  "$PAYLOAD/zeroomega-rules.txt"         "zeroomega 规则"
 
 note "zshrc / ghostty / AGENTS.md 是模板化或人工整理过的，不做逐字节比较"

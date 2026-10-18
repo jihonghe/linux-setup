@@ -163,15 +163,19 @@ if (( ! NO_PACKAGES )); then
   log "检查基础依赖"
   pkgs=()
   command -v zsh >/dev/null 2>&1 || pkgs+=(zsh)
-  if command -v pacman >/dev/null 2>&1 && ! pacman -Qq fuse2 >/dev/null 2>&1; then
-    pkgs+=(fuse2)
+  # aria2 供 ~/.alias.sh 的 dl 使用；jq 供 proxy-status 与 opencode 配置合并使用。
+  # 注：MonoCloud 的 AppImage 是静态运行时（static-pie），不需要 fuse2。
+  if command -v pacman >/dev/null 2>&1; then
+    for p in aria2 jq; do
+      pacman -Qq "$p" >/dev/null 2>&1 || pkgs+=("$p")
+    done
   fi
 
   if (( ${#pkgs[@]} )); then
     log "安装: ${pkgs[*]}"
     run sudo pacman -S --needed --noconfirm "${pkgs[@]}"
   else
-    log "依赖已齐（zsh / fuse2）"
+    log "依赖已齐（zsh / aria2 / jq）"
   fi
 fi
 
@@ -192,7 +196,7 @@ log "落地配置"
 install_file "$PAYLOAD/zshrc"   "$HOME/.zshrc"  644
 install_file "$PAYLOAD/zshenv"  "$HOME/.zshenv" 644
 install_file "$PAYLOAD/alias.sh" "$HOME/.alias.sh" 644
-install_file "$PAYLOAD/gitconfig" "$HOME/.gitconfig" 644
+install_file "$PAYLOAD/gitconfig" "$HOME/.config/git/config" 644
 install_file "$PAYLOAD/zeroomega-rules.txt" "$HOME/.config/zeroomega/rules.txt" 644
 
 for f in alias-help alias-lint proxy-bench; do

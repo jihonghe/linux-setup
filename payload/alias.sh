@@ -126,7 +126,7 @@ dl() {
     echo "用法: dl <url> [文件名]   （可选 DL_DIR=目录）" >&2
     return 1
   fi
-  command -v aria2c >/dev/null || { echo "缺少 aria2c：sudo apt install aria2" >&2; return 1; }
+  command -v aria2c >/dev/null || { echo "缺少 aria2c：sudo pacman -S aria2" >&2; return 1; }
   mkdir -p "$dir"
 
   [ -z "$out" ] && out="$(basename "${url%%\?*}")"
