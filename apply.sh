@@ -8,7 +8,7 @@
 #   bash apply.sh --verify       # 只做环境检查
 #
 # 这个脚本不做的事：改默认 shell、装 AUR 应用、配代理、碰分区。
-# 手动步骤见仓库 README。
+# 会写 /etc/opt/edge/policies/managed/color.json（需要 sudo）；手动步骤见 README。
 
 set -euo pipefail
 
@@ -261,7 +261,47 @@ else
   install_file "$PAYLOAD/ghostty.config" "$GHOSTTY_CFG" 644
 fi
 
-# ---------- 5. 检查 ----------
+# ---------- 5. Edge：flags + 配色策略 ----------
+# Edge 是 AUR 包，两处定制都在 Omarchy 管辖之外：
+#   1. flags —— AUR 的 /usr/bin/microsoft-edge-stable 只读
+#      $XDG_CONFIG_HOME/microsoft-edge-stable-flags.conf，不会套用 Omarchy 给
+#      Chromium 的 chromium-flags.conf。这里补一份（Wayland / libsecret /
+#      Omarchy 的三个扩展 / 浏览器并行下载）。
+#      注意：这个文件不支持 "#" 注释 —— wrapper 是 `exec ... $EDGE_USER_FLAGS`，
+#      注释会被拆成独立参数丢给 Edge。
+#   2. 配色 —— Omarchy 的主题模板只有 chromium.theme.tpl，不含 Edge；Edge 的
+#      窗口色只能用托管策略改（/etc/opt/edge/policies/managed/），所以按当前
+#      主题的 background 生成一份。**这一步需要 sudo。**
+if [[ -x /opt/microsoft/msedge/microsoft-edge ]] || command -v microsoft-edge-stable >/dev/null 2>&1; then
+  install_file "$PAYLOAD/edge-flags.conf" "$HOME/.config/microsoft-edge-stable-flags.conf" 644
+
+  edge_policy=/etc/opt/edge/policies/managed/color.json
+  edge_color="#1a1b26" # tokyo-night 的 background，读不到主题时兜底
+  theme_colors="$HOME/.local/state/omarchy/current/theme/colors.toml"
+  if [[ -r "$theme_colors" ]]; then
+    c="$(sed -n 's/^background *= *"\(#[0-9a-fA-F]\{6\}\)".*/\1/p' "$theme_colors" | head -n1)"
+    if [[ -n "$c" ]]; then
+      edge_color="$c"
+    fi
+  fi
+
+  if (( DRY_RUN )); then
+    plan "写入 $edge_policy（BrowserThemeColor=$edge_color，需要 sudo）"
+  else
+    if [[ -f "$edge_policy" ]]; then
+      mkdir -p "$BACKUP_DIR"
+      cp "$edge_policy" "$BACKUP_DIR/edge-color.json" 2>/dev/null || true
+    fi
+    sudo mkdir -p "$(dirname "$edge_policy")"
+    printf '{"BrowserThemeColor": "%s", "BrowserColorScheme": "device"}\n' "$edge_color" |
+      sudo tee "$edge_policy" >/dev/null
+    log "Edge 配色策略已写入（BrowserThemeColor=$edge_color）"
+  fi
+else
+  log "未检测到 Edge，跳过 Edge 定制"
+fi
+
+# ---------- 6. 检查 ----------
 verify || true
 
 printf '\n'

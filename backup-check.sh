@@ -93,8 +93,10 @@ compare "$HOME/.config/opencode/cli.json"    "$PAYLOAD/opencode/cli.json"       
 compare "$HOME/.config/opencode/tui.json"    "$PAYLOAD/opencode/tui.json"           "opencode/tui.json"
 compare "$HOME/.config/git/config"           "$PAYLOAD/gitconfig"                   "gitconfig"
 compare "$HOME/.config/zeroomega/rules.txt"  "$PAYLOAD/zeroomega-rules.txt"         "zeroomega 规则"
+compare "$HOME/.config/microsoft-edge-stable-flags.conf" "$PAYLOAD/edge-flags.conf"   "Edge flags"
 
 note "zshrc / ghostty / AGENTS.md 是模板化或人工整理过的，不做逐字节比较"
+note "Edge 配色策略（/etc/opt/edge/policies/managed/color.json）由 apply.sh 按主题生成，不比较"
 
 # ---------- SSH ----------
 step "SSH"

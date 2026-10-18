@@ -66,6 +66,7 @@ linux-setup/
     │   └── AGENTS.md
     ├── gitconfig
     ├── ghostty.config        # 下拉终端配置片段
+    ├── edge-flags.conf       # Edge 启动参数（Omarchy 只给 Chromium 出这套）
     └── zeroomega-rules.txt   # 浏览器分流规则源文件
 ```
 
@@ -208,7 +209,9 @@ bash apply.sh
 4. 复制 `alias.sh`、`zshrc`、`zshenv`、bin 脚本、`gitconfig`（→ `~/.config/git/config`）、ZeroOmega 规则
 5. 合并 OpenCode 配置（保留 Omarchy 自带的 `opencode.json`）
 6. 向 Ghostty 配置追加下拉终端设置（不覆盖官方配置）
-7. 运行环境检查
+7. 落地 Edge 定制：`edge-flags.conf` → `~/.config/`，并按当前主题背景色写
+   `/etc/opt/edge/policies/managed/color.json`（**这一步需要 sudo**）
+8. 运行环境检查
 
 参数：
 
@@ -305,6 +308,25 @@ fcitx5-diagnose | head -30
 ```bash
 yay -S microsoft-edge-stable-bin
 ```
+
+> **Edge 的两处定制由 `apply.sh` 落地**（Omarchy 只给 Chromium 出主题/flags，不管 Edge）：
+>
+> - `~/.config/microsoft-edge-stable-flags.conf` —— AUR 的 `/usr/bin/microsoft-edge-stable`
+>   只认这个文件名，不会读 Omarchy 的 `chromium-flags.conf`。内容 = Wayland 原生、
+>   `gnome-libsecret` 存密码、Omarchy 的三个扩展，外加 `--enable-parallel-downloading`
+>   （让 Edge 自己下载时多连接；大文件仍推荐 `dl`）。
+>   **该文件不支持 `#` 注释**，wrapper 会把注释当参数丢给 Edge。
+> - `/etc/opt/edge/policies/managed/color.json` —— 让 Edge 窗口色跟随 Omarchy 主题
+>   （`BrowserThemeColor` 取当前主题 `colors.toml` 的 `background`）。Edge 没有对应的
+>   Omarchy 模板，只能走托管策略，所以这一步写 `/etc`、**需要 sudo**。
+>
+> 两处改完都要**完全退出 Edge 再启动**才生效（Chromium 单例不会重读 flags）。验证：
+>
+> ```bash
+> pgrep -af enable-parallel-downloading | grep -v pgrep
+> ```
+>
+> 换主题后重跑 `bash apply.sh`（或手动改那份 json）即可同步配色。
 
 1. Edge 登录账号（同步收藏/密码）
 2. 安装 ZeroOmega 扩展
