@@ -228,6 +228,11 @@ chsh -s /usr/bin/zsh
 exec zsh
 ```
 
+> **改完要注销重登一次（或重启）**：`chsh` 只改 `/etc/passwd`，而当前图形会话
+> （Hyprland / Ghostty）环境里 `SHELL` 仍是旧值，`Super+Return` 新开的终端
+> 会**依旧进 bash**。临时救急：在当前终端 `exec zsh`。彻底生效：`omarchy logout`
+> 后重新登录。
+
 新终端里确认：
 
 ```bash
