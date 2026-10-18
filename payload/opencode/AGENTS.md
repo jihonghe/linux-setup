@@ -35,6 +35,8 @@
 - 规则格式：`[SwitchyOmega Conditions]` + `@with result`，每行 `*.域名 +proxy`，
   **最后一行必须是 `* +direct`**
 - **不支持 `#` 注释**：这版解析器会把注释行当成规则并报错
+- 情景模式 **`proxy`** 必须指向 `HTTP 127.0.0.1:10801`（规则里的 `+proxy` 指的就是它）；
+  默认占位值 `proxy.example.com:8080` 会让所有命中代理的域名失败。当前情景应为 `proxy-rules`
 - 改完必须在 ZeroOmega 选项里用「编辑源码」重新粘贴并点「应用选项」，否则不生效
 - 代理客户端：MonoCloud（mihomo），mixed 端口 `127.0.0.1:10801`（HTTP + SOCKS5）
 - `google.com` 会被重定向到 `google.com.hk`，所以规则里两个都要有

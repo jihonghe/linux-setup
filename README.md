@@ -303,10 +303,14 @@ yay -S microsoft-edge-stable-bin
 
 1. Edge 登录账号（同步收藏/密码）
 2. 安装 ZeroOmega 扩展
-3. 打开扩展选项 → **编辑源码**
-4. 粘贴 `payload/zeroomega-rules.txt` 的内容
-5. 点「应用选项」
+3. 打开扩展选项 → 左侧「情景模式」→ 选中 **`proxy`** → 代理协议选 `HTTP`（mixed 端口用 `SOCKS5` 也行）→ 服务器 `127.0.0.1` → 端口 `10801` → 「应用选项」
+4. 选中 **`proxy-rules`**（自动切换情景）→ **编辑源码**
+5. 粘贴 `payload/zeroomega-rules.txt` 的**全部**内容 → 「应用选项」
+6. 点扩展图标，确认当前用的情景是 **`proxy-rules`**
 
+> **关键**：规则里的 `+proxy` 指的是名为 `proxy` 的情景，它默认是占位值
+> `proxy.example.com:8080`，**必须改成 `127.0.0.1:10801`**，否则所有命中代理的
+> 域名都会请求失败。另外粘贴时别漏末尾的 `github.com` 等行。
 > Edge 账号同步不会恢复扩展内部数据，这一步必须手动。
 
 ### 7.3 OpenCode
