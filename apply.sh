@@ -71,8 +71,12 @@ backup_path() {
     plan "备份 $target → $BACKUP_DIR/"
     return 0
   fi
-  mkdir -p "$BACKUP_DIR"
-  cp -a "$target" "$BACKUP_DIR/$(basename "$target")"
+  # 保留相对 $HOME 的目录结构，避免同名文件（如 git/config 与 ghostty/config）
+  # 在同一个备份目录里互相覆盖。
+  local rel="${target#"$HOME"/}"
+  [[ "$rel" == "$target" ]] && rel="$(basename "$target")"
+  mkdir -p "$BACKUP_DIR/$(dirname "$rel")"
+  cp -a "$target" "$BACKUP_DIR/$rel"
 }
 
 install_file() {
