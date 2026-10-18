@@ -15,6 +15,10 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PAYLOAD="$REPO_DIR/payload"
 
+# MonoCloud (mihomo) mixed 端口。GitHub 直连常被阻断，而此刻 ~/.alias.sh 的
+# proxy-on 尚未生效，所以克隆 oh-my-zsh 时自动借道这个代理。
+MONO_PROXY="${MONO_PROXY:-http://127.0.0.1:10801}"
+
 DRY_RUN=0
 NO_PACKAGES=0
 VERIFY_ONLY=0
@@ -183,7 +187,16 @@ fi
 if [[ ! -d "$HOME/.oh-my-zsh" ]]; then
   if command -v git >/dev/null 2>&1; then
     log "安装 oh-my-zsh"
-    run git clone --depth=1 https://github.com/ohmyzsh/ohmyzsh.git "$HOME/.oh-my-zsh"
+    clone_args=()
+    if [[ -z "${HTTPS_PROXY:-}${https_proxy:-}${ALL_PROXY:-}${all_proxy:-}" ]] \
+       && command -v ss >/dev/null 2>&1 \
+       && ss -lnt 2>/dev/null | grep -q ':10801 '; then
+      warn "GitHub 直连常被阻断，自动借道 MonoCloud 代理 $MONO_PROXY"
+      clone_args=(-c "http.proxy=$MONO_PROXY" -c "https.proxy=$MONO_PROXY")
+    fi
+    if ! run git "${clone_args[@]}" clone --depth=1 https://github.com/ohmyzsh/ohmyzsh.git "$HOME/.oh-my-zsh"; then
+      warn "oh-my-zsh 克隆失败（多半是 GitHub 网络）。开代理后重跑 apply.sh 即可，其余步骤可继续手动补。"
+    fi
   else
     warn "git 未安装，跳过 oh-my-zsh"
   fi

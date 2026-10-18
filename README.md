@@ -196,6 +196,10 @@ bash apply.sh --dry-run   # 先看计划
 bash apply.sh
 ```
 
+> **先确认 MonoCloud 已连接**：脚本要从 GitHub 拉 oh-my-zsh。若当前 shell 没有
+> `HTTPS_PROXY` 之类的环境变量，而 MonoCloud 监听在 `127.0.0.1:10801`，脚本会
+> **自动借道**该代理克隆；两样都没有才会失败。
+
 它会：
 
 1. 检查并补装 `zsh`、`aria2`、`jq`（`dl` 用 aria2c；代理状态与配置合并用 jq）
