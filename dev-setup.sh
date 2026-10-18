@@ -190,6 +190,16 @@ if (( ! SKIP_ANDROID )); then
       export JAVA_HOME
     fi
 
+    # sdkmanager 是 Java 程序，不读 HTTPS_PROXY，只认 JVM 系统属性；
+    # 因此在开了代理时显式把它透传进去（dl.google.com 被墙时才需要）。
+    if [[ -n "${HTTPS_PROXY:-}${https_proxy:-}${ALL_PROXY:-}${all_proxy:-}" ]]; then
+      _p="${HTTPS_PROXY:-${https_proxy:-${ALL_PROXY:-${all_proxy}}}}"
+      _ph="${_p#*://}"; _ph="${_ph%%:*}"
+      _pp="${_p##*:}"; _pp="${_pp%%/*}"
+      export JAVA_OPTS="${JAVA_OPTS:-} -Dhttp.proxyHost=$_ph -Dhttp.proxyPort=$_pp -Dhttps.proxyHost=$_ph -Dhttps.proxyPort=$_pp"
+      log "sdkmanager 使用代理 $_ph:$_pp（经 JAVA_OPTS，因为 Java 不读环境变量）"
+    fi
+
     yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses >/dev/null 2>&1 || true
     "$SDKMANAGER" --sdk_root="$ANDROID_HOME" "${ANDROID_PKGS[@]}"
   fi
